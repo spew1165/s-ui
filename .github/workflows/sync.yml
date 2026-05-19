@@ -1,0 +1,50 @@
+name: Upstream Sync
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  UPSTREAM_SYNC_REPO: alireza0/s-ui
+  UPSTREAM_SYNC_BRANCH: main
+  TARGET_SYNC_BRANCH: s-ui
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # every day
+  workflow_dispatch:
+
+jobs:
+  sync_latest_from_upstream:
+    name: Sync latest commits from upstream repo
+    runs-on: ubuntu-latest
+    if: ${{ github.event.repository.fork }}
+
+    steps:
+      # Step 1: run a standard checkout action
+      - name: Checkout target repo
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ env.TARGET_SYNC_BRANCH }}
+          fetch-depth: 0
+
+      # Step 2: run the sync action
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.3
+        with:
+          upstream_sync_repo: ${{ env.UPSTREAM_SYNC_REPO }}
+          upstream_sync_branch: ${{ env.UPSTREAM_SYNC_BRANCH }}
+          target_sync_branch: ${{ env.TARGET_SYNC_BRANCH }}
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }} # automatically generated, no need to set
+          shallow_since: "1 years ago"
+          upstream_pull_args: "--unshallow"
+
+          # Set test_mode true to run tests instead of the true action!!
+          test_mode: false
+
+      - name: Sync check
+        if: failure()
+        run: |
+          echo "[Error] 由于上游仓库的 workflow 文件变更，导致 GitHub 自动暂停了本次自动更新，你需要手动 Sync Fork 一次。"
+          exit 1
